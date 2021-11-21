@@ -98,8 +98,11 @@ let g:airline_theme='light'
 let g:airline_powerline_fonts = 1
 " shows buffers at the top - enable if bufferline plugin is off. Integration
 " with bufferline shows the buffers in the statusline
-"let g:airline_section_z = airline#section#create(['%p%%', 'linenr', 'colnr'])
+" Fix blurred column number in file position on the right
+"let g:airline_section_z = airline#section#create(['%p%%', 'linenr','colnr'])
 let g:airline_section_z = airline#section#create(['linenr', '/%L', 'colnr'])
+" Disable trailing whitespace count
+let g:airline#extensions#whitespace#enabled = 0
 "let g:airline#extensions#tabline#enabled = 1
 "let g:airline#extensions#tabline#formatter = 'unique_tail'
 "let g:airline_exclude_preview = 1
