@@ -53,7 +53,6 @@ set t_Co=256
 set encoding=utf-8
 set nocompatible
 set hidden
-"set showtabline=0
 
 """"""""""""""""""
 " NERDTree config
@@ -124,7 +123,10 @@ vnoremap <C-S> <C-C>:update<CR>
 inoremap <C-S> <C-O>:update<CR>
 
 " Buffer navigation
-map <C-k> :bn<cr>
-map <C-j> :bp<cr>
-map <C-d> :bp<cr>:bd #<cr>
+map <C-k> <Esc>:bn<cr>
+map <C-j> <Esc>:bp<cr>
+map <C-d> <Esc>:bp<cr>:bd #<cr>
 
+imap <C-k> <Esc>:bn<cr>
+imap <C-j> <Esc>:bp<cr>
+imap <C-d> <Esc>:bp<cr>:bd #<cr>

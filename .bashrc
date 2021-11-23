@@ -306,7 +306,7 @@ function git-add-all ()
         echo "usage : git-commit-all [jira] \"commit message\""
         return
     elif [ "$#" -eq 1 ]; then
-        jira=$(git st | awk '/On branch/ {print $4 }' | awk 'BEGIN {FS="-"}; {print ""$1"-"$2""}')
+        jira=$(git st | awk '/On branch/ {print $3 }' | awk 'BEGIN {FS="-"}; {print ""$1"-"$2""}')
         message=$1
     else
         jira=$1

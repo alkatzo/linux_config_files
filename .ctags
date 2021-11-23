@@ -1,0 +1,3 @@
+--langdef=cfg
+--langmap=cfg:.cfg
+--regex-cfg=/^\[(.*)\]/\1/s,Section/
