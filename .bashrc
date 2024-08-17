@@ -45,7 +45,6 @@ shopt -s checkwinsize
 
 # Causes bash to append to history instead of overwriting it so if you start a new terminal, you have old session history
 shopt -s histappend
-#PROMPT_COMMAND='history -a'
 
 # Allow ctrl-S for history navigation (with ctrl-R)
 #stty -ixon
@@ -107,7 +106,7 @@ function __setprompt
 	local SSH2_IP=`echo $SSH2_CLIENT | awk '{ print $1 }'`
     local SERVER=`hostname -f`
 	if [ $SSH2_IP ] || [ $SSH_IP ] ; then
-		PS1+="\[${GREEN}\]\u\[${LIGHTGRAY}\]@\[${RED}\]$SERVER"
+		PS1+="\[${GREEN}\]\u\[${LIGHTGRAY}\]@\[${BROWN}\]$SERVER"
 	else
 		PS1+="\[${GREEN}\]\u\[${LIGHTGRAY}\]@\[${BROWN}\]$SERVER"
 	fi
@@ -150,6 +149,9 @@ function title ()
 
 function ssh ()
 {
+    local LIGHTCYAN="\e[38;5;14m"
+    local NOCOLOR="\e[00m"
+    
     dest=${!#}
     if [[ $dest == *"@"* ]]; then
         USERNAME=`echo $dest | cut --only-delimited -d '@' -f1`
@@ -159,13 +161,18 @@ function ssh ()
 	SERVERNAME=$dest
     fi
 
-    cp .bashrc /tmp/.bashrc_remote
-    scp -q /tmp/.bashrc_remote .bash_aliases .tmux.conf $USERNAME@$SERVERNAME:~/
+    cp ~/.bashrc /tmp/.bashrc_remote_$SERVERNAME
+    sed -i "/local SERVER=/c\local SERVER=$SERVERNAME" /tmp/.bashrc_remote_$SERVERNAME
+    echo -e "${LIGHTCYAN}Copying files to $SERVERNAME ...${NOCOLOR}"
+    scp -q /tmp/.bashrc_remote_$SERVERNAME ~/.bash_aliases ~/.tmux.conf $USERNAME@$SERVERNAME:~/
 
+
+    echo -e "${LIGHTCYAN}Checking if TMUX is installed on $SERVERNAME ...${NOCOLOR}"
     # check if the remote has tmux 
     if command ssh $@ "command -v tmux>/dev/null" 2>/dev/null; then 
         # just ssh into it
-        command ssh -t $@ "/bin/bash --rcfile ~/.bashrc_remote; rm ~/.bashrc_remote; rm ~/.bash_aliases"
+        echo -e "${LIGHTCYAN}Connecting to $SERVERNAME ...${NOCOLOR}"
+        command ssh -t $@ "/bin/bash --rcfile ~/.bashrc_remote_$SERVERNAME; rm ~/.bashrc_remote_$SERVERNAME; rm ~/.bash_aliases"
     else 
     
         # no tmux on the remote => if current has tmux => change current tmux window title to the remote name
@@ -173,7 +180,8 @@ function ssh ()
             tmux set-window-option window-status-format "#[fg=green] #{window_index} #[fg=colour196] $SERVERNAME"
             tmux set-window-option window-status-current-format "#[fg=green] #{window_index} #[fg=colour196] $SERVERNAME"
         fi
-        command ssh -t $@ "/bin/bash --rcfile ~/.bashrc_remote; rm ~/.bashrc_remote"
+        echo -e "${LIGHTCYAN}Connecting to $SERVERNAME ...${NOCOLOR}"
+        command ssh -t $@ "/bin/bash --rcfile ~/.bashrc_remote_$SERVERNAME; rm ~/.bashrc_remote_$SERVERNAME"
         if command -v tmux>/dev/null; then
             tmux set-window-option window-status-format "#[fg=green] #{window_index} #[fg=colour45] #{pane_current_path}"
             tmux set-window-option window-status-current-format "#[fg=green] #{window_index} #[fg=colour45] #{pane_current_path}"
@@ -191,80 +199,84 @@ git_n_files=0
 git_commit=""
 git_push=""
 
-function git-init-vars ()
+set-jira-ticket()
 {
-    git_n_files=0
-    git_commit="git commit -m"
-    git_push="git push"
+    local input_string="$1"
+    # Extract the first two tokens separated by '-'
+    local jira_ticket=$(echo "$input_string" | cut -d'-' -f1-2)
+    # Export the variable
+    export JIRA_TICKET="$jira_ticket"
+}
+
+function git-co ()
+{
+    git checkout $1
+    set-jira-ticket $1
 }
 
 function git-add-all ()
 {
-    if [ "$#" -lt 1 ] || [ "$#" -gt 2  ]; then
-        echo "usage : git-commit-all [jira] \"commit message\""
-        return
-    elif [ "$#" -eq 1 ]; then
-        jira=$(git st | awk '/On branch/ {print $3 }' | awk 'BEGIN {FS="-"}; {print ""$1"-"$2""}')
-        message=$1
-    else
-        jira=$1
-        message=$2
+    files=$(git st | awk '/modified:|deleted:|new file:/ {print $2}')
+    if [ -z "$files" ]; then
+        echo "Nothing to add"
+        return 0
     fi
+    files="$files"
 
-    git-init-vars
-    
-    files=$(git st | awk '/modified:|deleted:/ {print $3}')
-    new_files=$(git st | awk '/new file:/ {print $4}')
-    files="$files $new_files"
-    git_n_files=$(echo $files| wc -l)
-    if [ $git_n_files -eq 0 ]; then
-        return
-    fi
-    
     git add --all $files
     git st
-    git_commit="$git_commit \"$jira $message\""
-    printf "\e[96m$git_commit\e[0m\n"    
+    return 1
 }
 
 function git-commit-all ()
 {
-    if [ "$#" -lt 1 ] || [ "$#" -gt 2  ]; then
+    if [ "$#" -lt 1 ]; then
         echo "usage : git-commit-all \"commit message\""
-        return
+        return 0
     fi
 
-    git-add-all "$@"
-    if [ $git_n_files -eq 0 ]; then
-        return
+    git-add-all
+    local n_files=$?
+
+    if [ $n_files -eq 0 ]; then
+	echo "Nothing to commit"
+        return 0
     fi
- 
+
+    local message="\"$JIRA_TICKET $*\""
+    printf "\e[96mgit commit -m $message\e[0m\n"
     echo "Commit using the above command? [Y/n]"
     read -s -n 1 answer 
+
     if [ -z "$answer" ] || [ $answer != 'n' ]; then
-        eval $git_commit
-        printf "\e[96m$git_push\e[0m\n"
+        git commit -m "$message"
+	git st
+	return $n_files
     else
-        git_n_files=0
+        return 0
     fi
 }
 
 function git-push-all ()
 {
-    if [ "$#" -lt 1 ] || [ "$#" -gt 2  ]; then
+    if [ "$#" -lt 1 ]; then
         echo "usage : git-push-all \"commit message\""
         return
     fi
 
     git-commit-all "$@"
-    if [ $git_n_files -eq 0 ]; then
-        return
-    fi  
+    n_files=$?
 
+    if [ $n_files -eq 0 ]; then
+	echo "Nothing to push"
+        return
+    fi
+
+    printf "\e[96mgit push\e[0m\n"
     echo "Push using the above command? [Y/n]"
     read -s -n 1 answer
     if [ -z "$answer" ] || [ $answer != 'n' ]; then
-        eval $git_push 
+        git push
     fi
 }
 
